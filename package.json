@@ -1,0 +1,45 @@
+{
+	"name": "cookie-clicker-cli",
+	"version": "1.0.0",
+	"description": "A fun terminal-based Cookie Clicker game",
+	"module": "src/index.ts",
+	"type": "module",
+	"bin": {
+		"cookie-clicker": "./dist/index.js",
+		"cookieclicker": "./dist/index.js"
+	},
+	"scripts": {
+		"dev": "bun run src/index.ts",
+		"build": "bun build src/index.ts --outdir dist --target node",
+		"check": "biome check",
+		"check:fix": "biome check --write",
+		"prepublishOnly": "bun run check && bun run build"
+	},
+	"files": [
+		"dist"
+	],
+	"keywords": [
+		"cookie-clicker",
+		"game",
+		"cli",
+		"terminal",
+		"fun"
+	],
+	"author": "mathisjs",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/mathisjs/cookie-clicker.git"
+	},
+	"homepage": "https://github.com/mathisjs/cookie-clicker",
+	"bugs": {
+		"url": "https://github.com/mathisjs/cookie-clicker/issues"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.3.10",
+		"@types/bun": "latest"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	}
+}
