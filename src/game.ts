@@ -12,6 +12,8 @@ export function createGame(): GameState {
 		}
 
 		const cps = items.reduce((sum, item) => sum + item.cps * item.owned, 0);
+		const clickPower =
+			1 + items.reduce((sum, item) => sum + item.clickPower * item.owned, 0);
 
 		const now = Date.now();
 		const offlineTime = Math.min(
@@ -23,8 +25,9 @@ export function createGame(): GameState {
 		return {
 			cookies: savedData.cookies + offlineEarnings,
 			totalCookies: savedData.totalCookies + offlineEarnings,
+			totalClicks: savedData.totalClicks || 0,
 			cps,
-			clickPower: savedData.clickPower,
+			clickPower,
 			shopItems: items,
 			startedAt: savedData.startedAt,
 			lastSaved: now,
@@ -34,6 +37,7 @@ export function createGame(): GameState {
 	return {
 		cookies: 0,
 		totalCookies: 0,
+		totalClicks: 0,
 		cps: 0,
 		clickPower: 1,
 		shopItems: items,
@@ -45,6 +49,7 @@ export function createGame(): GameState {
 export function clickCookie(state: GameState): void {
 	state.cookies += state.clickPower;
 	state.totalCookies += state.clickPower;
+	state.totalClicks++;
 	saveGame(state);
 }
 
@@ -56,8 +61,8 @@ export function tick(state: GameState): void {
 	}
 }
 
-export function buyItem(state: GameState, index: number): boolean {
-	const item = state.shopItems[index];
+export function buyItem(state: GameState, itemId: string): boolean {
+	const item = state.shopItems.find((i) => i.id === itemId);
 	if (!item) return false;
 
 	const cost = getItemCost(item);
@@ -66,6 +71,8 @@ export function buyItem(state: GameState, index: number): boolean {
 	state.cookies -= cost;
 	item.owned++;
 	state.cps = state.shopItems.reduce((sum, i) => sum + i.cps * i.owned, 0);
+	state.clickPower =
+		1 + state.shopItems.reduce((sum, i) => sum + i.clickPower * i.owned, 0);
 	saveGame(state);
 	return true;
 }
@@ -74,6 +81,7 @@ export function saveGame(state: GameState): void {
 	const data: SaveData = {
 		cookies: state.cookies,
 		totalCookies: state.totalCookies,
+		totalClicks: state.totalClicks,
 		clickPower: state.clickPower,
 		ownedItems: {},
 		startedAt: state.startedAt,

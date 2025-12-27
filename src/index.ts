@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { buyItem, clickCookie, createGame, saveGame, tick } from "./game";
+import { getItemsByCategory } from "./shop";
 import {
 	clearScreen,
 	createUIState,
@@ -36,7 +37,9 @@ Options:
 Controls:
   ENTER         Click the cookie / Buy item in shop
   E             Open/close the shop
+  S             Open/close statistics
   ↑/↓           Navigate shop items
+  ←/→           Switch shop category
   Q             Quit the game
 
 Your progress is automatically saved.
@@ -71,14 +74,28 @@ function handleInput(key: Buffer): void {
 
 	if (key.length === 3 && key[0] === 27 && key[1] === 91) {
 		if (ui.shopOpen) {
+			const categoryItems = getItemsByCategory(
+				state.shopItems,
+				ui.shopCategory,
+			);
 			if (key[2] === 65) {
 				ui.selectedItem = Math.max(0, ui.selectedItem - 1);
 				render(state, ui);
 			} else if (key[2] === 66) {
 				ui.selectedItem = Math.min(
-					state.shopItems.length - 1,
+					categoryItems.length - 1,
 					ui.selectedItem + 1,
 				);
+				render(state, ui);
+			} else if (key[2] === 68) {
+				ui.shopCategory =
+					ui.shopCategory === "producers" ? "upgrades" : "producers";
+				ui.selectedItem = 0;
+				render(state, ui);
+			} else if (key[2] === 67) {
+				ui.shopCategory =
+					ui.shopCategory === "producers" ? "upgrades" : "producers";
+				ui.selectedItem = 0;
 				render(state, ui);
 			}
 		}
@@ -97,9 +114,16 @@ function handleInput(key: Buffer): void {
 		}
 		lastClickTime = now;
 
-		if (ui.shopOpen) {
-			buyItem(state, ui.selectedItem);
-		} else {
+		if (ui.shopOpen && !ui.statsOpen) {
+			const categoryItems = getItemsByCategory(
+				state.shopItems,
+				ui.shopCategory,
+			);
+			const selectedItem = categoryItems[ui.selectedItem];
+			if (selectedItem) {
+				buyItem(state, selectedItem.id);
+			}
+		} else if (!ui.statsOpen) {
 			clickCookie(state);
 			triggerClickAnimation(ui, state.clickPower);
 		}
@@ -110,10 +134,23 @@ function handleInput(key: Buffer): void {
 	const char = String.fromCharCode(byte).toLowerCase();
 
 	if (char === "e") {
+		if (ui.statsOpen) {
+			return;
+		}
 		ui.shopOpen = !ui.shopOpen;
 		if (ui.shopOpen) {
 			ui.selectedItem = 0;
+			ui.shopCategory = "producers";
 		}
+		render(state, ui);
+		return;
+	}
+
+	if (char === "s") {
+		if (ui.shopOpen) {
+			return;
+		}
+		ui.statsOpen = !ui.statsOpen;
 		render(state, ui);
 		return;
 	}

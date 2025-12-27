@@ -1,8 +1,10 @@
-import { formatNumber, getItemCost } from "./shop";
-import type { GameState, ShopItem } from "./types";
+import { formatNumber, getItemCost, getItemsByCategory } from "./shop";
+import type { GameState, ShopCategory, ShopItem } from "./types";
 
 export interface UIState {
 	shopOpen: boolean;
+	statsOpen: boolean;
+	shopCategory: ShopCategory;
 	selectedItem: number;
 	noColor: boolean;
 	clickAnim: number;
@@ -286,7 +288,9 @@ function renderGameView(state: GameState, ui: UIState): string[] {
 	lines.push(centerText(clickText, width));
 	lines.push("");
 
-	lines.push(centerText(`${C.dim}[E] Shop  •  [Q] Quit${C.reset}`, width));
+	lines.push(
+		centerText(`${C.dim}[E] Shop  •  [S] Stats  •  [Q] Quit${C.reset}`, width),
+	);
 
 	lines.push("");
 	lines.push(
@@ -325,11 +329,23 @@ function renderShopView(state: GameState, ui: UIState): string[] {
 	);
 	lines.push("");
 
+	const producersTab =
+		ui.shopCategory === "producers"
+			? `${C.bold}${C.yellow}[PRODUCERS]${C.reset}`
+			: `${C.dim}[PRODUCERS]${C.reset}`;
+	const upgradesTab =
+		ui.shopCategory === "upgrades"
+			? `${C.bold}${C.yellow}[UPGRADES]${C.reset}`
+			: `${C.dim}[UPGRADES]${C.reset}`;
+	lines.push(centerText(`${producersTab}  ${upgradesTab}`, width));
+	lines.push("");
+
 	const shopWidth = Math.min(60, width - 4);
 	const itemLines: string[] = [];
+	const categoryItems = getItemsByCategory(state.shopItems, ui.shopCategory);
 
-	for (let i = 0; i < state.shopItems.length; i++) {
-		const item = state.shopItems[i] as ShopItem;
+	for (let i = 0; i < categoryItems.length; i++) {
+		const item = categoryItems[i] as ShopItem;
 		const cost = getItemCost(item);
 		const canBuy = state.cookies >= cost;
 		const isSelected = i === ui.selectedItem;
@@ -339,11 +355,14 @@ function renderShopView(state: GameState, ui: UIState): string[] {
 		const nameColor = isSelected ? C.bold : "";
 
 		const costStr = formatNumber(cost).padStart(8);
-		const cpsStr = `+${item.cps}/s`.padStart(8);
+		const bonusStr =
+			ui.shopCategory === "producers"
+				? `+${item.cps}/s`.padStart(8)
+				: `+${item.clickPower}`.padStart(8);
 		const ownedStr = `x${item.owned}`.padStart(4);
 
 		itemLines.push(
-			`${selector} ${nameColor}${item.name.padEnd(14)}${C.reset} │ ${costColor}${costStr}${C.reset} │ ${C.cyan}${cpsStr}${C.reset} │ ${ownedStr}`,
+			`${selector} ${nameColor}${item.name.padEnd(14)}${C.reset} │ ${costColor}${costStr}${C.reset} │ ${C.cyan}${bonusStr}${C.reset} │ ${ownedStr}`,
 		);
 
 		if (isSelected && shopWidth > 50) {
@@ -351,7 +370,9 @@ function renderShopView(state: GameState, ui: UIState): string[] {
 		}
 	}
 
-	const shopBox = createBox(itemLines, shopWidth, "ITEMS");
+	const boxTitle =
+		ui.shopCategory === "producers" ? "PRODUCERS (+CPS)" : "UPGRADES (+CLICK)";
+	const shopBox = createBox(itemLines, shopWidth, boxTitle);
 	for (const line of shopBox) {
 		lines.push(centerText(line, width));
 	}
@@ -359,10 +380,94 @@ function renderShopView(state: GameState, ui: UIState): string[] {
 	lines.push("");
 	lines.push(
 		centerText(
-			`${C.dim}[↑↓] Select  •  [ENTER] Buy  •  [E] Close${C.reset}`,
+			`${C.dim}[←→] Category  •  [↑↓] Select  •  [ENTER] Buy  •  [E] Close${C.reset}`,
 			width,
 		),
 	);
+
+	return lines;
+}
+
+function formatDuration(ms: number): string {
+	const seconds = Math.floor(ms / 1000);
+	const minutes = Math.floor(seconds / 60);
+	const hours = Math.floor(minutes / 60);
+	const days = Math.floor(hours / 24);
+
+	if (days > 0) {
+		return `${days}d ${hours % 24}h ${minutes % 60}m`;
+	}
+	if (hours > 0) {
+		return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+	}
+	if (minutes > 0) {
+		return `${minutes}m ${seconds % 60}s`;
+	}
+	return `${seconds}s`;
+}
+
+function renderStatsView(state: GameState, ui: UIState): string[] {
+	const { width } = getTerminalSize();
+	const C = createColors(ui.noColor);
+	const lines: string[] = [];
+
+	lines.push("");
+	const title = ui.noColor
+		? "=== STATISTICS ==="
+		: `${C.gold}${C.bold}📊 STATISTICS 📊${C.reset}`;
+	lines.push(centerText(title, width));
+	lines.push(
+		centerText(
+			`${C.dim}${"─".repeat(Math.min(40, width - 10))}${C.reset}`,
+			width,
+		),
+	);
+	lines.push("");
+
+	const startDate = new Date(state.startedAt);
+	const playTime = Date.now() - state.startedAt;
+	const totalUpgrades = state.shopItems.reduce(
+		(sum, item) => sum + item.owned,
+		0,
+	);
+	const producersOwned = state.shopItems
+		.filter((i) => i.category === "producers")
+		.reduce((sum, i) => sum + i.owned, 0);
+	const upgradesOwned = state.shopItems
+		.filter((i) => i.category === "upgrades")
+		.reduce((sum, i) => sum + i.owned, 0);
+
+	const statsWidth = Math.min(50, width - 4);
+	const statsLines: string[] = [
+		`${C.bold}Game Started${C.reset}`,
+		`  ${C.cyan}${startDate.toLocaleDateString()} ${startDate.toLocaleTimeString()}${C.reset}`,
+		"",
+		`${C.bold}Play Time${C.reset}`,
+		`  ${C.cyan}${formatDuration(playTime)}${C.reset}`,
+		"",
+		`${C.bold}Total Cookies Baked${C.reset}`,
+		`  ${C.cookie}${formatNumber(state.totalCookies)}${C.reset}`,
+		"",
+		`${C.bold}Total Clicks${C.reset}`,
+		`  ${C.yellow}${formatNumber(state.totalClicks)}${C.reset}`,
+		"",
+		`${C.bold}Current Stats${C.reset}`,
+		`  Cookies/sec: ${C.green}${formatNumber(state.cps)}${C.reset}`,
+		`  Click power: ${C.magenta}+${state.clickPower}${C.reset}`,
+		"",
+		`${C.bold}Items Owned${C.reset}`,
+		`  Total: ${C.bold}${totalUpgrades}${C.reset}`,
+		`  Producers: ${C.cyan}${producersOwned}${C.reset}`,
+		`  Upgrades: ${C.magenta}${upgradesOwned}${C.reset}`,
+	];
+
+	const statsBox = createBox(statsLines, statsWidth, "STATS");
+	for (const line of statsBox) {
+		lines.push(centerText(line, width));
+	}
+
+	lines.push("");
+	lines.push(centerText(`${C.dim}[S] Close Stats${C.reset}`, width));
 
 	return lines;
 }
@@ -371,9 +476,14 @@ export function render(state: GameState, ui: UIState): void {
 	const { width, height } = getTerminalSize();
 	const C = createColors(ui.noColor);
 
-	const contentLines = ui.shopOpen
-		? renderShopView(state, ui)
-		: renderGameView(state, ui);
+	let contentLines: string[];
+	if (ui.statsOpen) {
+		contentLines = renderStatsView(state, ui);
+	} else if (ui.shopOpen) {
+		contentLines = renderShopView(state, ui);
+	} else {
+		contentLines = renderGameView(state, ui);
+	}
 
 	let output = "\x1B[H";
 
@@ -414,6 +524,8 @@ export function render(state: GameState, ui: UIState): void {
 export function createUIState(noColor: boolean = false): UIState {
 	return {
 		shopOpen: false,
+		statsOpen: false,
+		shopCategory: "producers",
 		selectedItem: 0,
 		noColor,
 		clickAnim: 0,
